@@ -25,7 +25,7 @@ class FunctionCallTest extends BaseTestClass
     /** @test */
     public function has_arraysum_test()
     {
-        $tokens = token_get_all(file_get_contents(__DIR__ . '/stubs/function_test/some_function.sub'));
+        $tokens = token_get_all(file_get_contents(__DIR__ .'/stubs/function_test/some_function.sub'));
 
         $countArraySum = 0;
         foreach ($tokens as $i => $token) {
