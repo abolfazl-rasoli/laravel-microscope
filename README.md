@@ -234,12 +234,12 @@ Just like the default keywords.
 1 - Lets say you want to find only the "comments" which contain the word "todo:" in them.
 ```php
  'todo_comments' => [
-        'search' => '"<comment>"',
+        'search' => '<comment>',
         'predicate' => function($matches) {    //   <====  here we check comment has "todo:"
             $comment = $matches[0]; // first placehoder value
             $content = $comment[1]; // get its content
             
-            return Str::containts($content, 'todo:') ? true : false;
+            return Str::contains($content, 'todo:') ? true : false;
         },
 ]
 
@@ -251,14 +251,14 @@ Just like the default keywords.
 
 ```php
  'remove_todo_comments' => [
-    'search' => '"<comment>"',      //   <=== we capture any comment
-    'replace' => '"<1>"',
+    'search' => '<comment>',      //   <=== we capture any comment
+    'replace' => '<1>',
 
     'predicate' => function($matches) {
         $comment = $matches[0]; // first matched placehoder
         $content = $comment[1];
 
-        return Str::containts($content, 'todo:') ? true : false;
+        return Str::contains($content, 'todo:') ? true : false;
     },
 
     'mutator' => function ($matches) {       //  <=== here we remove "todo:"
@@ -281,13 +281,13 @@ You can also mention a static method instead of a function, like this: `[MyClass
 3 - Lets say you want to put the optional comma for the last elements in the arrays if they are missing.
 ```php
     'enforce_optional_comma' => [
-        'search' => '"<white_space>?"]',
+        'search' => '<white_space>?]',
         'replace' => ',"<1>"]',
         'avoid_syntax_errors' => true,
         'avoid_result_in' => [
            ',,]',
            '[,]',
-           '"<var>"[,]'
+           '<var>[,]'
        ],
     ]
 ```
@@ -301,8 +301,8 @@ If you are curious to see a better pattern which does not need any syntax checki
 
 ```
 'enforce_optional_comma' => [
-       'search' => '"<1:any>""<2:white_space>?"["<3:until_match>"]',
-       'replace' => '"<1>""<2>"["<3>",]',
+       'search' => '<1:any><2:white_space>?[<3:until_match>]',
+       'replace' => '<1><2>[<3>,]',
        'avoid_result_in' => [
            ',,]',
            '[,]'
@@ -313,7 +313,7 @@ If you are curious to see a better pattern which does not need any syntax checki
            return $type !== T_VARIABLE && $type !== ']';
        },
        'post_replace' => [
-           '"<1:white_space>",]' => ',"<1>"]'
+           '<1:white_space>,]' => ',<1>]'
        ]
 ],
 
@@ -322,7 +322,7 @@ This is more complex but works much faster. (since it does not need the php synt
 
 - Here `'post_replace'` is a pattern which is applied only and only on the resulting code to refine it, and NOT on the entire file.
 
-- You can optionally comment your placeholders (as above `"<1:any>"`) with numbers, so that you know which one corresponds to which when replaced.
+- You can optionally comment your placeholders (as above `<1:any>`) with numbers, so that you know which one corresponds to which when replaced.
 
 ### Filters:
 
@@ -331,8 +331,8 @@ Currently the microscope offers only two built-in filters: `is_sub_class_of` and
 Can you guess what the heck this pattern is doing?!
 ```php
  'mention_query' => [
-      'search' => '"<1:class_ref>"::"<2:name>"'
-      'replace' => '"<1>"::query()->"<2>"',
+      'search' => '<1:class_ref>::<2:name>'
+      'replace' => '<1>::query()-><2>',
       'filters' => [
           1 => [
               'is_sub_class_of' => \Illuminate\Database\Eloquent\Model::class
@@ -376,8 +376,8 @@ Lets say we want to opt-into php 7.4 arrow functions:
 
 ```php
 'fn' => [
-    'search' => 'function ("<in_between>")"<until>"{ "<statement>" }',
-    'replace' => 'fn ("<1>") => "<3>"',
+    'search' => 'function (<in_between>)<until>{ <statement> }',
+    'replace' => 'fn (<1>) => <3>',
     'tags' => 'php74,refactor',
     'mutator' => function ($matches) {
       $matches[2][1] = str_replace(['return ', ';'], '', $matches[2][1]);
@@ -408,9 +408,9 @@ $closure = function ($a) {
 };
 ```
 
-#### Difference between `"<statement>"` and `"<until>";`
+#### Difference between `<statement>` and `<until>;`
 
-They seem to be very similar but there is an important case which you can not use `"<until>";` in order to cover it properly!
+They seem to be very similar but there is an important case which you can not use `<until>;` in order to cover it properly!
 
 ```php
 $first = $a + $b;
@@ -427,13 +427,13 @@ If we define our pattern like this:
 ```php
 return [
     'staty' => [
-        'search' => '"<var>" = "<until>";',   
+        'search' => '<var> = <until>;',   
     ]
 ];
 ```
 For `$c = $a + $b;` they act the same way, but for the second one `"<until>";` will not capture the whole closure and will stop as soon as it reaches `$a++;` and that is a problem.
 
-But if you define your pattern as: `'"<var>" = "<statement>"'` it would be smart enough to capture the correct semi-colon at the end of closure definition and whole close would be captured.
+But if you define your pattern as: `'<var> = <statement>'` it would be smart enough to capture the correct semi-colon at the end of closure definition and whole close would be captured.
 
 ### Capturing global function calls:
 
@@ -493,13 +493,13 @@ Ok, how the pattern would look like then?!
        
        'search' => '<1:class_ref>::where('<2:str>', '<3:str>')'<repeating:wheres>'->get();'
        
-       'replace' => '"<1>"::where([
-           "<2>" => "<3>",
+       'replace' => '<1>::where([
+           <2> => <3>,
            "<repeating:1:key_values>"])->get();',
 
        'named_patterns' => [
-           'wheres' => '->where("<str>", "<str>")"<white_space>?"',
-           'key_values' => '"<1>" => "<2>","<3>"',
+           'wheres' => '->where(<str>, <str>)<white_space>?',
+           'key_values' => '<1> => <2>,<3>',
        ]
    ]
 ```
@@ -861,24 +861,7 @@ If you discover any security-related issues, please email `imanghafoori1@gmail.c
 
 - https://github.com/imanghafoori1/laravel-anypass
 
-------------
-
-### Eloquent Relativity
-
-:gem: It allows you to decouple your eloquent models to reach a modular structure
-
-- https://github.com/imanghafoori1/eloquent-relativity
-
 --------------
-### Todo:
-- Detect Bad code
-- Facadize static method calls
-- Detect return keyword in eloquent relations
-- Detect wrong action() calls
-- Enhance blocky code detection
-- Detect `return abort();`
-- Detect un-registered service providers
-- Detect unused middlewares
 
 ```
 A man will never fail unless he stops trying.

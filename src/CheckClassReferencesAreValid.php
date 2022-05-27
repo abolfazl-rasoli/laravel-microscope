@@ -2,11 +2,14 @@
 
 namespace Imanghafoori\LaravelMicroscope;
 
+use ErrorException;
 use Illuminate\Support\Composer;
 use Illuminate\Support\Str;
 use Imanghafoori\LaravelMicroscope\Analyzers\ComposerJson;
 use Imanghafoori\LaravelMicroscope\ErrorReporters\ErrorPrinter;
 use Imanghafoori\LaravelMicroscope\Psr4\NamespaceCorrector;
+use Imanghafoori\TokenAnalyzer\ClassReferenceFinder;
+use Imanghafoori\TokenAnalyzer\ClassRefExpander;
 use Imanghafoori\TokenAnalyzer\GetClassProperties;
 use Imanghafoori\TokenAnalyzer\ParseUseStatement;
 
@@ -16,7 +19,7 @@ class CheckClassReferencesAreValid
     {
         try {
             self::checkReferences($tokens, $absFilePath);
-        } catch (\ErrorException $e) {
+        } catch (ErrorException $e) {
             // In case a file is moved or deleted,
             // composer will need a dump autoload.
             if (! Str::endsWith($e->getFile(), 'vendor\composer\ClassLoader.php')) {
@@ -63,9 +66,8 @@ class CheckClassReferencesAreValid
 
         $isFixed && $tokens = token_get_all(file_get_contents($absFilePath));
 
-        $isFixed = self::checkImports($currentNamespace, $class, $absFilePath, $tokens);
-
-        $isFixed && $tokens = token_get_all(file_get_contents($absFilePath));
+        //$isFixed = self::checkImports($currentNamespace, $class, $absFilePath, $tokens);
+        //$isFixed && $tokens = token_get_all(file_get_contents($absFilePath));
 
         self::checkNotImportedClasses($tokens, $absFilePath);
     }
@@ -184,9 +186,22 @@ class CheckClassReferencesAreValid
 
     private static function checkNotImportedClasses($tokens, $absFilePath)
     {
-        [$classReferences, $hostNamespace] = self::findClassRefs($tokens, $absFilePath);
+        [$classReferences, $hostNamespace, $unusedRefs] = self::findClassRefs($tokens, $absFilePath);
 
         $printer = app(ErrorPrinter::class);
+
+        foreach ($unusedRefs as $class) {
+            if (! self::isAbsent($class[0])) {
+                $printer->extraImport($absFilePath, $class[0], $class[1]);
+            } else {
+                //$isCorrected = self::tryToFix($classImport, $absFilePath, $line, $as, $printer);
+                //if (! $isCorrected) {
+                $printer->wrongImport($absFilePath, $class[0], $class[1]);
+                //} else {
+                //    $fixed = true;
+                //}
+            }
+        }
 
         loopStart:
         foreach ($classReferences as $classReference) {
@@ -249,13 +264,21 @@ class CheckClassReferencesAreValid
     public static function findClassRefs($tokens, $absFilePath): array
     {
         try {
-            [$classReferences, $hostNamespace] = ParseUseStatement::findClassReferences($tokens);
+            //[$classReferences, $hostNamespace] = ParseUseStatement::findClassReferences($tokens);
 
-            return [$classReferences, $hostNamespace];
-        } catch (\ErrorException $e) {
+            $imports = ParseUseStatement::parseUseStatements($tokens);
+            $imports = $imports[0] ?: [$imports[1]];
+            [$classes, $namespace] = ClassReferenceFinder::process($tokens);
+
+            $docblockRefs = ClassReferenceFinder::readRefsInDocblocks($tokens, $namespace, array_values($imports)[0] ?? []);
+            $unusedRefs = ParseUseStatement::getUnusedImports($classes, $imports, $docblockRefs);
+            [$classReferences, $hostNamespace,] = ClassRefExpander::expendReferences($classes, $imports, $namespace);
+
+            return [$classReferences, $hostNamespace, $unusedRefs, $docblockRefs];
+        } catch (ErrorException $e) {
             self::requestIssue($absFilePath);
 
-            return [[], ''];
+            return [[], '', []];
         }
     }
 

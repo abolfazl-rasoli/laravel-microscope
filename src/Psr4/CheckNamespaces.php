@@ -11,6 +11,8 @@ class CheckNamespaces
 {
     public static $checkedNamespaces = 0;
 
+    public static $cacheData = [];
+
     public static $changedNamespaces = [];
 
     public static function reset()
@@ -28,9 +30,10 @@ class CheckNamespaces
     public static function all($detailed)
     {
         $autoload = ComposerJson::readAutoload();
-
+        self::$cacheData = cache()->get('microscope_psr4:');
+        //self::$cacheData = [];
         $scanned = [];
-        foreach ($autoload as $psr4Path) {
+        foreach ($autoload as $namespace => $psr4Path) {
 
             // to avoid duplicate scanning
             foreach ($scanned as $s) {
@@ -41,11 +44,13 @@ class CheckNamespaces
 
             $scanned[] = $psr4Path;
 
-            CheckNamespaces::within($psr4Path, $detailed);
+            CheckNamespaces::within($namespace, $psr4Path, $detailed);
         }
+
+        cache()->put('microscope_psr4:', self::$cacheData, now()->addDays(3));
     }
 
-    public static function within($composerPath, $detailed)
+    public static function within($namespace, $composerPath, $detailed)
     {
         $paths = FilePath::getAllPhpFiles($composerPath);
 
@@ -54,6 +59,14 @@ class CheckNamespaces
 
             // Exclude blade files
             if (Str::endsWith($absFilePath, ['.blade.php'])) {
+                continue;
+            }
+
+            $relativePath = FilePath::getRelativePath($absFilePath);
+
+            self::$checkedNamespaces++;
+
+            if ((self::$cacheData[self::getKey($relativePath, $namespace)] ?? 0) === filemtime($absFilePath)) {
                 continue;
             }
 
@@ -72,12 +85,10 @@ class CheckNamespaces
 
             $detailed && event('microscope.checking', [$classFilePath->getRelativePathname()]);
 
-            $relativePath = FilePath::getRelativePath($absFilePath);
-
             $correctNamespaces = self::getCorrectNamespaces($relativePath);
 
-            self::$checkedNamespaces++;
             if (in_array($currentNamespace, $correctNamespaces)) {
+                self::remember($namespace, $relativePath, $absFilePath);
                 continue;
             }
             $correctNamespace = self::findShortest($correctNamespaces);
@@ -94,7 +105,6 @@ class CheckNamespaces
             self::changedNamespaces($class, $from, $to);
             NamespaceCorrector::fix($absPath, $from, $to);
         }
-        unset($fix);
 
         event('laravel_microscope.namespace_fixed', get_defined_vars());
     }
@@ -141,5 +151,15 @@ class CheckNamespaces
 
             return strlen($a) < strlen($b) ? $a : $b;
         });
+    }
+
+    private static function getKey($relativePath, $namespace)
+    {
+        return 'check:psr4-'.$relativePath.$namespace;
+    }
+
+    private static function remember($namespace, $relativePath, $absFilePath)
+    {
+        self::$cacheData[self::getKey($relativePath, $namespace)] = filemtime($absFilePath);
     }
 }

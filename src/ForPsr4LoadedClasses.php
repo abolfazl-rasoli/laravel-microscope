@@ -26,7 +26,6 @@ class ForPsr4LoadedClasses
                 $absFilePath = $phpFilePath->getRealPath();
 
                 $tokens = token_get_all(file_get_contents($absFilePath));
-
                 foreach ($checks as $check) {
                     $check::check($tokens, $absFilePath, $phpFilePath, $psr4Path, $psr4Namespace, $params);
                 }
